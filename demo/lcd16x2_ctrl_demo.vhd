@@ -72,6 +72,7 @@ begin  -- architecture behavior
 
   rst <= '0';
 
+  -- see the display's datasheet for the character map
   line1(127 downto 120) <= X"20"; 
   line1(119 downto 112) <= X"20";
   line1(111 downto 104) <= X"48";  -- H
