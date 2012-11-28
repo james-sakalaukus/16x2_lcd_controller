@@ -6,7 +6,7 @@
 -- Author     :   <stachelsau@T420>
 -- Company    : 
 -- Created    : 2012-07-28
--- Last update: 2012-07-29
+-- Last update: 2012-11-28
 -- Platform   : 
 -- Standard   : VHDL'93/02
 -------------------------------------------------------------------------------
@@ -62,7 +62,7 @@ architecture rtl of lcd16x2_ctrl is
     delay_h : integer range 0 to MAX_DELAY;
     delay_l : integer range 0 to MAX_DELAY;
   end record op_t;
-  constant default         : op_t := (rs => '1', data => X"00", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
+  constant default_op      : op_t := (rs => '1', data => X"00", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
   constant op_select_line1 : op_t := (rs => '0', data => X"80", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
   constant op_select_line2 : op_t := (rs => '0', data => X"C0", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
 
@@ -117,7 +117,7 @@ begin
   begin
     case state is
       when RESET =>
-        this_op    <= default;
+        this_op    <= default_op;
         next_state <= CONFIG;
         next_ptr   <= config_ops_t'high;
         
@@ -142,7 +142,7 @@ begin
         end if;
 
       when WRITE_LINE1 =>
-        this_op      <= default;
+        this_op      <= default_op;
         this_op.data <= line1_buffer(ptr*8 + 7 downto ptr*8);
         next_ptr     <= ptr;
         next_state   <= WRITE_LINE1;
@@ -163,7 +163,7 @@ begin
         end if;
 
       when WRITE_LINE2 =>
-        this_op      <= default;
+        this_op      <= default_op;
         this_op.data <= line2_buffer(ptr*8 + 7 downto ptr*8);
         next_ptr     <= ptr;
         next_state   <= WRITE_LINE2;
