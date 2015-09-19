@@ -1,33 +1,12 @@
--------------------------------------------------------------------------------
--- Title      : 16x2 LCD controller
--- Project    : 
--------------------------------------------------------------------------------
--- File       : lcd16x2_ctrl.vhd
--- Author     :   <stachelsau@T420>
--- Company    : 
--- Created    : 2012-07-28
--- Last update: 2012-11-28
--- Platform   : 
--- Standard   : VHDL'93/02
--------------------------------------------------------------------------------
--- Description: The controller initializes the display when rst goes to '0'.
---              After that it writes the contend of the input signals
---              line1_buffer and line2_buffer continously to the display.
--------------------------------------------------------------------------------
--- Copyright (c) 2012 
--------------------------------------------------------------------------------
--- Revisions  :
--- Date        Version  Author  Description
--- 2012-07-28  1.0      stachelsau      Created
--------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
 
-entity lcd16x2_ctrl is
+entity lcd20x4_ctrl is
   
   generic (
-    CLK_PERIOD_NS : positive := 15);    -- ~68MHz
+--    CLK_PERIOD_NS : positive := 15);    -- ~66.7MHz; actual is 14.7, 68MHz
+  CLK_PERIOD_NS : positive := 1000);    -- 1MHz
 
   port (
     clk          : in  std_logic;
@@ -36,12 +15,14 @@ entity lcd16x2_ctrl is
     lcd_rs       : out std_logic;
     lcd_rw       : out std_logic;
     lcd_db       : out std_logic_vector(7 downto 4);
-    line1_buffer : in  std_logic_vector(127 downto 0);  -- 16x8bit
-    line2_buffer : in  std_logic_vector(127 downto 0)); 
+    line1_buffer : in  std_logic_vector(159 downto 0);  -- 20x8bit
+    line2_buffer : in  std_logic_vector(159 downto 0);
+    line3_buffer : in  std_logic_vector(159 downto 0);
+    line4_buffer : in  std_logic_vector(159 downto 0)); 
 
-end entity lcd16x2_ctrl;
+end entity lcd20x4_ctrl;
 
-architecture rtl of lcd16x2_ctrl is
+architecture rtl of lcd20x4_ctrl is
 
   constant DELAY_15_MS   : positive := 15 * 10**6 / CLK_PERIOD_NS + 1;
   constant DELAY_1640_US : positive := 1640 * 10**3 / CLK_PERIOD_NS + 1;
@@ -65,6 +46,8 @@ architecture rtl of lcd16x2_ctrl is
   constant default_op      : op_t := (rs => '1', data => X"00", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
   constant op_select_line1 : op_t := (rs => '0', data => X"80", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
   constant op_select_line2 : op_t := (rs => '0', data => X"C0", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
+  constant op_select_line3 : op_t := (rs => '0', data => X"94", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
+  constant op_select_line4 : op_t := (rs => '0', data => X"D4", delay_h => DELAY_NIBBLE, delay_l => DELAY_40_US);
 
   -- init + config operations:
   -- write 3 x 0x3 followed by 0x2
@@ -104,16 +87,20 @@ architecture rtl of lcd16x2_ctrl is
                    SELECT_LINE1,
                    WRITE_LINE1,
                    SELECT_LINE2,
-                   WRITE_LINE2);
+                   WRITE_LINE2,
+                   SELECT_LINE3,
+                   WRITE_LINE3,
+                   SELECT_LINE4,
+                   WRITE_LINE4);
 
   signal state      : state_t               := RESET;
   signal next_state : state_t;
-  signal ptr        : natural range 0 to 15 := 0;
-  signal next_ptr   : natural range 0 to 15;
+  signal ptr        : natural range 0 to 19 := 0;
+  signal next_ptr   : natural range 0 to 19;
 
 begin
 
-  proc_state : process(state, op_state, ptr, line1_buffer, line2_buffer) is
+  proc_state : process(state, op_state, ptr, line1_buffer, line2_buffer, line3_buffer, line4_buffer) is
   begin
     case state is
       when RESET =>
@@ -134,7 +121,7 @@ begin
 
       when SELECT_LINE1 =>
         this_op  <= op_select_line1;
-        next_ptr <= 15;
+        next_ptr <= 19;
         if op_state = DONE then
           next_state <= WRITE_LINE1;
         else
@@ -155,7 +142,7 @@ begin
 
       when SELECT_LINE2 =>
         this_op  <= op_select_line2;
-        next_ptr <= 15;
+        next_ptr <= 19;
         if op_state = DONE then
           next_state <= WRITE_LINE2;
         else
@@ -167,6 +154,48 @@ begin
         this_op.data <= line2_buffer(ptr*8 + 7 downto ptr*8);
         next_ptr     <= ptr;
         next_state   <= WRITE_LINE2;
+        if op_state = DONE then
+          next_ptr <= ptr - 1;
+          if ptr = 0 then
+            next_state <= SELECT_LINE3;
+          end if;
+        end if;
+
+      when SELECT_LINE3 =>
+        this_op  <= op_select_line3;
+        next_ptr <= 19;
+        if op_state = DONE then
+          next_state <= WRITE_LINE3;
+        else
+          next_state <= SELECT_LINE3;
+        end if;
+
+      when WRITE_LINE3 =>
+        this_op      <= default_op;
+        this_op.data <= line3_buffer(ptr*8 + 7 downto ptr*8);
+        next_ptr     <= ptr;
+        next_state   <= WRITE_LINE3;
+        if op_state = DONE then
+          next_ptr <= ptr - 1;
+          if ptr = 0 then
+            next_state <= SELECT_LINE4;
+          end if;
+        end if;
+
+      when SELECT_LINE4 =>
+        this_op  <= op_select_line4;
+        next_ptr <= 19;
+        if op_state = DONE then
+          next_state <= WRITE_LINE4;
+        else
+          next_state <= SELECT_LINE4;
+        end if;
+
+      when WRITE_LINE4 =>
+        this_op      <= default_op;
+        this_op.data <= line4_buffer(ptr*8 + 7 downto ptr*8);
+        next_ptr     <= ptr;
+        next_state   <= WRITE_LINE4;
         if op_state = DONE then
           next_ptr <= ptr - 1;
           if ptr = 0 then
